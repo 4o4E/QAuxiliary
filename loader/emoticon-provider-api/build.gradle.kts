@@ -7,10 +7,7 @@ version = "1.0.0"
 
 android {
     namespace = "io.github.qauxv.chainloader.api.emoticon"
-
-    compileSdk {
-        version = release(37)
-    }
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 24
