@@ -73,6 +73,7 @@ include(
     ":loader:startup",
     ":loader:sbl",
     ":loader:hookapi",
+    ":loader:emoticon-provider-api",
     ":libs:stub",
     ":libs:ksp",
     ":libs:mmkv",

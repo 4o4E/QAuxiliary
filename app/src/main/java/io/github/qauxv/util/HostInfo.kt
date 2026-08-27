@@ -29,13 +29,14 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.content.pm.PackageInfoCompat
+import io.github.qauxv.BuildConfig
 
 const val PACKAGE_NAME_QQ = "com.tencent.mobileqq"
 const val PACKAGE_NAME_QQ_INTERNATIONAL = "com.tencent.mobileqqi"
 const val PACKAGE_NAME_QQ_LITE = "com.tencent.qqlite"
 const val PACKAGE_NAME_QQ_HD = "com.tencent.minihd.qq"
 const val PACKAGE_NAME_TIM = "com.tencent.tim"
-const val PACKAGE_NAME_SELF = "io.github.qauxv"
+val PACKAGE_NAME_SELF: String = BuildConfig.APPLICATION_ID
 
 lateinit var hostInfo: HostInfoImpl
 

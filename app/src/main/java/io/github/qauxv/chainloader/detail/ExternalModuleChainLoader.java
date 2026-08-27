@@ -31,8 +31,10 @@ import androidx.annotation.NonNull;
 import cc.ioctl.util.HostInfo;
 import dalvik.system.BaseDexClassLoader;
 import dalvik.system.PathClassLoader;
+import io.github.qauxv.chainloader.api.emoticon.ExternalModuleEnvironment;
 import io.github.qauxv.chainloader.detail.ui.ExternalModuleConfigHook;
 import io.github.qauxv.util.IoUtils;
+import io.github.qauxv.util.SyncUtils;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -112,6 +114,7 @@ public class ExternalModuleChainLoader {
 
     public static synchronized void loadExternalModules(@NonNull ExternalModuleManager.ExternalModuleInfo[] modules) {
         Context ctx = HostInfo.getApplication();
+        ExternalModuleEnvironment.initialize(HostInfo.getApplication(), SyncUtils.getProcessName());
         PackageManager pms = ctx.getPackageManager();
         for (ExternalModuleManager.ExternalModuleInfo module : modules) {
             if (!module.getEnable()) {

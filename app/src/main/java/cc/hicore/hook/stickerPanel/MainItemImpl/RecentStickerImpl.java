@@ -7,10 +7,13 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import cc.hicore.Utils.FunConf;
+import cc.hicore.Utils.XLog;
 import cc.hicore.hook.stickerPanel.Hooker.StickerPanelEntryHooker;
 import cc.hicore.hook.stickerPanel.ICreator;
 import cc.hicore.hook.stickerPanel.LocalDataHelper;
 import cc.hicore.hook.stickerPanel.RecentStickerHelper;
+import cc.hicore.hook.stickerPanel.StickerPanelAsync;
+import cc.hicore.hook.stickerPanel.StickerPanelImageLoader;
 import cc.hicore.message.chat.SessionUtils;
 import cc.hicore.message.common.MsgSender;
 import cc.ioctl.util.HostInfo;
@@ -26,7 +29,7 @@ public class RecentStickerImpl implements ICreator.IMainPanelItem {
     ViewGroup cacheView;
     Context mContext;
     LinearLayout panelContainer;
-    HashSet<ImageView> cacheImageView = new HashSet<>();
+    HashSet<ViewInfo> cacheImageView = new HashSet<>();
     TextView tv_title;
 
     List<RecentStickerHelper.RecentItemInfo> items;
@@ -72,20 +75,10 @@ public class RecentStickerImpl implements ICreator.IMainPanelItem {
 
     @Override
     public View getView() {
-        notifyDataSetChanged();
         dontAutoClose = FunConf.getBoolean("global", "sticker_panel_set_dont_close_panel", false);
+        onViewDestroy();
+        cacheView.postDelayed(this::notifyViewUpdate0, 50);
         return cacheView;
-    }
-
-    private void notifyDataSetChanged() {
-        for (ImageView img : cacheImageView) {
-            String coverView = (String) img.getTag();
-            if (new File(coverView+"_thumb").exists()){
-                Glide.with(HostInfo.getApplication()).load(coverView+"_thumb").into(img);
-            }else {
-                Glide.with(HostInfo.getApplication()).load(coverView).into(img);
-            }
-        }
     }
 
     private View getItemContainer(Context context, String coverView, int count, RecentStickerHelper.RecentItemInfo item) {
@@ -93,7 +86,8 @@ public class RecentStickerImpl implements ICreator.IMainPanelItem {
         int item_distance = (LayoutHelper.getScreenWidth(context) - width_item * 5) / 4;
 
         ImageView img = new ImageView(context);
-        cacheImageView.add(img);
+        ViewInfo info = new ViewInfo(img, coverView);
+        cacheImageView.add(info);
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(width_item, width_item);
         if (count > 0) params.leftMargin = item_distance;
@@ -115,9 +109,11 @@ public class RecentStickerImpl implements ICreator.IMainPanelItem {
 
     @Override
     public void onViewDestroy() {
-        for (ImageView img : cacheImageView) {
-            img.setImageBitmap(null);
-            Glide.with(HostInfo.getApplication()).clear(img);
+        for (ViewInfo info : cacheImageView) {
+            info.requestId++;
+            info.status = 0;
+            info.view.setImageBitmap(null);
+            StickerPanelImageLoader.clear(info.view);
         }
     }
 
@@ -128,6 +124,52 @@ public class RecentStickerImpl implements ICreator.IMainPanelItem {
 
     @Override
     public void notifyViewUpdate0() {
+        for (ViewInfo info : cacheImageView) {
+            if (LayoutHelper.isSmallWindowNeedPlay(info.view)) {
+                if (info.status == 0) {
+                    info.status = 1;
+                    loadVisibleImage(info);
+                }
+            } else if (info.status != 0) {
+                info.requestId++;
+                info.status = 0;
+                StickerPanelImageLoader.clear(info.view);
+            }
+        }
+    }
 
+    private void loadVisibleImage(ViewInfo info) {
+        File thumbnail = new File(info.coverView + "_thumb");
+        File source = thumbnail.isFile() ? thumbnail : new File(info.coverView);
+        int size = info.view.getLayoutParams().width;
+        int requestId = ++info.requestId;
+        StickerPanelAsync.run(() -> StickerPanelImageLoader.prepare(source, size, size, true),
+                prepared -> {
+                    if (info.status == 1 && info.requestId == requestId) {
+                        StickerPanelImageLoader.display(info.view, prepared, false);
+                        info.status = 2;
+                    } else {
+                        prepared.discard();
+                    }
+                }, error -> {
+                    XLog.e("RecentStickerImpl.load", error);
+                    if (info.status == 1 && info.requestId == requestId) {
+                        Glide.with(HostInfo.getApplication()).load(source).dontAnimate()
+                                .into(info.view);
+                        info.status = 2;
+                    }
+                });
+    }
+
+    private static final class ViewInfo {
+        private final ImageView view;
+        private final String coverView;
+        private int requestId;
+        private int status;
+
+        private ViewInfo(ImageView view, String coverView) {
+            this.view = view;
+            this.coverView = coverView;
+        }
     }
 }

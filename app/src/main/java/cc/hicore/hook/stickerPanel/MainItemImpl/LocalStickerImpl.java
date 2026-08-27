@@ -16,6 +16,8 @@ import cc.hicore.hook.stickerPanel.Hooker.StickerPanelEntryHooker;
 import cc.hicore.hook.stickerPanel.ICreator;
 import cc.hicore.hook.stickerPanel.LocalDataHelper;
 import cc.hicore.hook.stickerPanel.RecentStickerHelper;
+import cc.hicore.hook.stickerPanel.StickerPanelAsync;
+import cc.hicore.hook.stickerPanel.StickerPanelImageLoader;
 import cc.hicore.message.chat.SessionUtils;
 import cc.hicore.message.common.MsgSender;
 import cc.hicore.ui.SimpleDragSortView;
@@ -185,12 +187,12 @@ public class LocalStickerImpl implements ICreator.IMainPanelItem {
             ImageView preView = new ImageView(context);
             preView.setScaleType(ImageView.ScaleType.FIT_CENTER);
             preView.setLayoutParams(new ViewGroup.LayoutParams(LayoutHelper.getScreenWidth(HostInfo.getApplication()) / 2, LayoutHelper.getScreenWidth(HostInfo.getApplication()) / 2));
-            Glide.with(HostInfo.getApplication()).load(coverView).fitCenter().into(preView);
+            File previewSource = new File(coverView);
             new AlertDialog.Builder(mContext)
                     .setTitle("选择你对该表情的操作")
                     .setView(preView)
                     .setOnDismissListener(dialog -> {
-                        Glide.with(HostInfo.getApplication()).clear(preView);
+                        StickerPanelImageLoader.clear(preView);
                     }).setNegativeButton("删除该表情", (dialog, which) -> {
                         LocalDataHelper.deletePicItem(mPackInfo, item);
 
@@ -208,6 +210,22 @@ public class LocalStickerImpl implements ICreator.IMainPanelItem {
                         LocalDataHelper.setPathCover(mPackInfo, item);
                         ICreator.dismissAll();
                     }).show();
+            int previewSize = LayoutHelper.getScreenWidth(HostInfo.getApplication()) / 2;
+            StickerPanelAsync.run(() -> StickerPanelImageLoader.prepare(
+                            previewSource, previewSize, previewSize, true),
+                    prepared -> {
+                        if (preView.isAttachedToWindow()) {
+                            StickerPanelImageLoader.display(preView, prepared, false);
+                        } else {
+                            prepared.discard();
+                        }
+                    }, error -> {
+                        XLog.e("LocalStickerImpl.preview", error);
+                        if (preView.isAttachedToWindow()) {
+                            Glide.with(HostInfo.getApplication()).load(previewSource).dontAnimate()
+                                    .fitCenter().into(preView);
+                        }
+                    });
             return true;
         });
 
@@ -220,7 +238,7 @@ public class LocalStickerImpl implements ICreator.IMainPanelItem {
         for (ViewInfo img : cacheImageView) {
             img.view.setImageBitmap(null);
             img.status = 0;
-            Glide.with(HostInfo.getApplication()).clear(img.view);
+            StickerPanelImageLoader.clear(img.view);
         }
 
     }
@@ -235,45 +253,44 @@ public class LocalStickerImpl implements ICreator.IMainPanelItem {
         for (ViewInfo v : cacheImageView) {
             XLog.d("NotifyUpdate","update->"+LayoutHelper.isSmallWindowNeedPlay(v.view));
             if (LayoutHelper.isSmallWindowNeedPlay(v.view)) {
-                if (v.status != 1) {
+                if (v.status == 0) {
                     v.status = 1;
 
                     String coverView = (String) v.view.getTag();
-                    if(new File(coverView + "_thumb").exists()){
-                        if (showControlType == 0){
-                            Glide.with(HostInfo.getApplication()).load(coverView + "_thumb").skipMemoryCache(true).fitCenter().into(v.view);
-                        }else if (showControlType == 1){
-                            if (new File(coverView + "_thumb").length() > 2 * 1024 * 1024){
-                                Glide.with(HostInfo.getApplication()).load(coverView + "_thumb").dontAnimate().skipMemoryCache(true).fitCenter().into(v.view);
-                            }else {
-                                Glide.with(HostInfo.getApplication()).load(coverView + "_thumb").skipMemoryCache(true).fitCenter().into(v.view);
-                            }
-                        }else if (showControlType == 2){
-                            Glide.with(HostInfo.getApplication()).load(coverView + "_thumb").dontAnimate().skipMemoryCache(true).fitCenter().into(v.view);
-                        }
-
-                    }else {
-                        if (showControlType == 0){
-                            Glide.with(HostInfo.getApplication()).load(coverView).skipMemoryCache(true).fitCenter().into(v.view);
-                        }else if (showControlType == 1){
-                            if (new File(coverView).length() > 2 * 1024 * 1024){
-                                Glide.with(HostInfo.getApplication()).load(coverView).dontAnimate().skipMemoryCache(true).fitCenter().into(v.view);
-                            }else {
-                                Glide.with(HostInfo.getApplication()).load(coverView).skipMemoryCache(true).fitCenter().into(v.view);
-                            }
-                        }else if (showControlType == 2){
-                            Glide.with(HostInfo.getApplication()).load(coverView).dontAnimate().skipMemoryCache(true).fitCenter().into(v.view);
-                        }
-                    }
+                    File thumbnail = new File(coverView + "_thumb");
+                    File source = thumbnail.isFile() ? thumbnail : new File(coverView);
+                    boolean animate = showControlType == 0
+                            || (showControlType == 1 && source.length() <= 2 * 1024 * 1024);
+                    loadPreview(v, source, animate);
                 }
 
             } else {
                 if (v.status != 0) {
-                    Glide.with(HostInfo.getApplication()).clear(v.view);
+                    StickerPanelImageLoader.clear(v.view);
                     v.status = 0;
                 }
             }
         }
+    }
+
+    private void loadPreview(ViewInfo info, File source, boolean animate) {
+        int size = info.view.getLayoutParams().width;
+        StickerPanelAsync.run(() -> StickerPanelImageLoader.prepare(
+                source, size, size, animate), prepared -> {
+            if (info.status == 1) {
+                StickerPanelImageLoader.display(info.view, prepared, true);
+                info.status = 2;
+            } else {
+                prepared.discard();
+            }
+        }, error -> {
+            XLog.e("LocalStickerImpl.loadPreview", error);
+            if (info.status == 1) {
+                Glide.with(HostInfo.getApplication()).load(source).skipMemoryCache(true)
+                        .dontAnimate().fitCenter().into(info.view);
+                info.status = 2;
+            }
+        });
     }
 
     public static class ViewInfo {

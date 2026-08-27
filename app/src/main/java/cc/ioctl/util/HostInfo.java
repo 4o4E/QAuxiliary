@@ -23,6 +23,7 @@ package cc.ioctl.util;
 
 import android.app.Application;
 import androidx.annotation.NonNull;
+import io.github.qauxv.BuildConfig;
 
 /**
  * Helper class for getting host information. Keep it as simple as possible.
@@ -34,7 +35,7 @@ public class HostInfo {
     public static final String PACKAGE_NAME_QQ_LITE = "com.tencent.qqlite";
     public static final String PACKAGE_NAME_QQ_HD = "com.tencent.minihd.qq";
     public static final String PACKAGE_NAME_TIM = "com.tencent.tim";
-    public static final String PACKAGE_NAME_SELF = "io.github.qauxv";
+    public static final String PACKAGE_NAME_SELF = BuildConfig.APPLICATION_ID;
 
     private HostInfo() {
         throw new AssertionError("No instance for you!");

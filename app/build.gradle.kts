@@ -57,6 +57,8 @@ val isNewXposedApiEnabled = Version.getLocalProperty(project, "qauxv.override.ne
     ?.toBoolean() ?: true
 val isNativeFullDebugMode = Version.getLocalProperty(project, "qauxv.override.nativefulldebug")
     ?.toBoolean() ?: false
+val debugApplicationIdSuffix = Version.getLocalProperty(project, "qauxv.override.debug.applicationidsuffix")
+    ?.trim()?.takeIf { it.matches(Regex("\\.[A-Za-z][A-Za-z0-9_.]*")) }
 
 val currentBuildUuid = UUID.randomUUID().toString()
 println("Current build ID is $currentBuildUuid")
@@ -204,6 +206,7 @@ android {
             }
         }
         getByName("debug") {
+            applicationIdSuffix = debugApplicationIdSuffix
             ndk {
                 if (isNativeFullDebugMode) {
                     isJniDebuggable = true
@@ -320,6 +323,7 @@ kotlin {
 dependencies {
     // loader
     compileOnly(projects.loader.hookapi)
+    implementation(projects.loader.emoticonProviderApi)
     runtimeOnly(projects.loader.sbl)
     implementation(projects.loader.startup)
     // ksp
@@ -362,6 +366,7 @@ dependencies {
     ksp(libs.sealedEnum.ksp)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.runner)
+    testImplementation(libs.junit)
 }
 
 val adb: String = androidComponents.sdkComponents.adb.get().asFile.absolutePath

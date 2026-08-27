@@ -28,9 +28,15 @@ import cc.hicore.message.chat.SessionUtils;
 import com.tencent.qqnt.kernel.nativeinterface.MsgElement;
 import io.github.qauxv.bridge.kernelcompat.ContactCompat;
 import java.util.ArrayList;
+import java.util.function.BiConsumer;
 
 public class MsgSender {
     public static void send_pic_by_contact(ContactCompat contact,String picPath){
+        send_pic_by_contact(contact, picPath, null);
+    }
+
+    public static void send_pic_by_contact(ContactCompat contact, String picPath,
+            BiConsumer<Integer, String> callback) {
         if (QAppUtils.isQQnt()){
             ArrayList<MsgElement> newMsgArr = new ArrayList<>();
             if (contact.getChatType() == 4){
@@ -39,9 +45,12 @@ public class MsgSender {
                 newMsgArr.add(MsgBuilder.nt_build_pic(picPath));
             }
 
-            Nt_kernel_bridge.send_msg(contact,newMsgArr);
+            Nt_kernel_bridge.send_msg(contact, newMsgArr, callback);
         }else {
             Chat_facade_bridge.sendPic(contact,picPath);
+            if (callback != null) {
+                callback.accept(-1, "旧版 QQ 不支持确认图片发送结果");
+            }
         }
     }
 }

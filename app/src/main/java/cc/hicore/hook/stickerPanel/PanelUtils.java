@@ -21,6 +21,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class PanelUtils {
 
@@ -33,6 +34,7 @@ public class PanelUtils {
         LinearLayout mRoot = (LinearLayout) inflater.inflate(R.layout.sticker_pre_save, null);
         ImageView preView = mRoot.findViewById(R.id.emo_pre_container);
         preView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        AtomicBoolean previewActive = new AtomicBoolean(true);
         EmoPanel.EmoInfo NewInfo = new EmoPanel.EmoInfo();
         NewInfo.URL = URL;
         NewInfo.type = 2;
@@ -40,17 +42,11 @@ public class PanelUtils {
 
         if (URL.startsWith("http")) {
             EmoOnlineLoader.submit(NewInfo, () -> {
-                Glide.with(HostInfo.getApplication())
-                        .load(new File(NewInfo.Path))
-                        .fitCenter()
-                        .into(preView);
+                loadPreview(new File(NewInfo.Path), preView, previewActive);
             });
         } else {
             NewInfo.Path = URL;
-            Glide.with(HostInfo.getApplication())
-                    .load(new File(NewInfo.Path))
-                    .fitCenter()
-                    .into(preView);
+            loadPreview(new File(NewInfo.Path), preView, previewActive);
         }
 
         List<LocalDataHelper.LocalPath> paths = LocalDataHelper.readPaths();
@@ -126,8 +122,29 @@ public class PanelUtils {
                         Toasts.show("已保存到:" + Env.app_save_path + "本地表情包/" + choicePath.storePath + "/" + MD5);
                     }
                 }).setOnDismissListener(dialog -> {
-                    Glide.with(HostInfo.getApplication()).clear(preView);
+                    previewActive.set(false);
+                    StickerPanelImageLoader.clear(preView);
                 }).show();
+    }
+
+    private static void loadPreview(File source, ImageView preview, AtomicBoolean previewActive) {
+        if (!previewActive.get()) {
+            return;
+        }
+        int size = cc.ioctl.util.LayoutHelper.getScreenWidth(HostInfo.getApplication()) / 2;
+        StickerPanelAsync.run(() -> StickerPanelImageLoader.prepare(source, size, size, true),
+                result -> {
+                    if (previewActive.get()) {
+                        StickerPanelImageLoader.display(preview, result, false);
+                    } else {
+                        result.discard();
+                    }
+                }, error -> {
+                    if (previewActive.get()) {
+                        Glide.with(HostInfo.getApplication()).load(source).dontAnimate()
+                                .fitCenter().into(preview);
+                    }
+                });
     }
 
     //如果要保存的是多张图片则弹出MD5选择,选择后才弹出确认图片保存框

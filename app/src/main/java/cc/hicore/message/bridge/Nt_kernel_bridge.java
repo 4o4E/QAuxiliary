@@ -45,10 +45,16 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 public class Nt_kernel_bridge {
 
     public static void send_msg(ContactCompat contact, ArrayList<MsgElement> elements) {
+        send_msg(contact, elements, null);
+    }
+
+    public static void send_msg(ContactCompat contact, ArrayList<MsgElement> elements,
+            BiConsumer<Integer, String> callback) {
         HashMap<Integer, MsgAttributeInfo> attrMap = new HashMap<>();
         MsgAttributeInfo info = getDefaultAttributeInfo();
         if (info != null) {
@@ -62,11 +68,19 @@ public class Nt_kernel_bridge {
                 } else {
                     msgUniqueId = service.getMsgUniqueId(QAppUtils.getServiceTime());
                 }
-                service.sendMsg(msgUniqueId, contact, elements, attrMap, (i2, str) -> {
+                service.sendMsg(msgUniqueId, contact, elements, attrMap, (code, message) -> {
+                    if (callback != null) {
+                        callback.accept(code, message);
+                    }
                 });
             } catch (Exception e) {
                 XLog.e("Nt_kernel_bridge.send_msg", e);
+                if (callback != null) {
+                    callback.accept(-1, e.getMessage());
+                }
             }
+        } else if (callback != null) {
+            callback.accept(-1, "无法创建 QQ 消息属性");
         }
     }
 
